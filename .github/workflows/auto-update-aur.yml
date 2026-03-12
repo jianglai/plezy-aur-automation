@@ -1,0 +1,105 @@
+name: Auto-update AUR Package
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # Run every hour
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  update-aur:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get upstream latest release
+        id: upstream
+        run: |
+          LATEST=$(curl -s https://api.github.com/repos/edde746/plezy/releases/latest | jq -r '.tag_name')
+          echo "version=$LATEST" >> $GITHUB_OUTPUT
+          echo "Upstream latest version: $LATEST"
+
+      - name: Setup SSH for AUR
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AUR_SSH_PRIVATE_KEY }}" > ~/.ssh/aur_key
+          chmod 600 ~/.ssh/aur_key
+          cat >> ~/.ssh/config << EOF
+          Host aur.archlinux.org
+            IdentityFile ~/.ssh/aur_key
+            User aur
+            StrictHostKeyChecking accept-new
+          EOF
+
+      - name: Clone AUR package
+        run: |
+          git clone ssh://aur@aur.archlinux.org/plezy-bin.git /tmp/aur-package
+          cd /tmp/aur-package
+          CURRENT_VERSION=$(grep '^pkgver=' PKGBUILD | cut -d'=' -f2)
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_ENV
+          echo "AUR current version: $CURRENT_VERSION"
+
+      - name: Check if update needed
+        id: check
+        run: |
+          if [ "${{ steps.upstream.outputs.version }}" != "$CURRENT_VERSION" ]; then
+            echo "Update needed: $CURRENT_VERSION -> ${{ steps.upstream.outputs.version }}"
+            echo "needed=true" >> $GITHUB_OUTPUT
+          else
+            echo "No update needed (version: $CURRENT_VERSION)"
+            echo "needed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download release and calculate checksum
+        if: steps.check.outputs.needed == 'true'
+        id: download
+        run: |
+          VERSION="${{ steps.upstream.outputs.version }}"
+          URL="https://github.com/edde746/plezy/releases/download/${VERSION}/plezy-linux-x64.pkg.tar.zst"
+          curl -L -o /tmp/plezy-linux-x64.pkg.tar.zst "$URL"
+          SHA256=$(sha256sum /tmp/plezy-linux-x64.pkg.tar.zst | cut -d' ' -f1)
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+          echo "Downloaded release, SHA256: $SHA256"
+
+      - name: Update AUR package
+        if: steps.check.outputs.needed == 'true'
+        run: |
+          VERSION="${{ steps.upstream.outputs.version }}"
+          SHA256="${{ steps.download.outputs.sha256 }}"
+          cd /tmp/aur-package
+
+          # Get pkgname from PKGBUILD
+          PKGNAME=$(grep '^pkgname=' PKGBUILD | cut -d'=' -f2)
+
+          # Update PKGBUILD
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
+          sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+          sed -i "s|^source=.*|source=(\"${PKGNAME%-bin}-${VERSION}.pkg.tar.zst::https://github.com/edde746/plezy/releases/download/${VERSION}/plezy-linux-x64.pkg.tar.zst\")|" PKGBUILD
+          sed -i "s/^sha256sums=.*/sha256sums=('${SHA256}')/" PKGBUILD
+
+          # Update .SRCINFO manually
+          sed -i "s/^\tpkgver = .*/\tpkgver = ${VERSION}/" .SRCINFO
+          sed -i "s/^\tpkgrel = .*/\tpkgrel = 1/" .SRCINFO
+          sed -i "s|^\tsource = .*|\tsource = plezy-${VERSION}.pkg.tar.zst::https://github.com/edde746/plezy/releases/download/${VERSION}/plezy-linux-x64.pkg.tar.zst|" .SRCINFO
+          sed -i "s/^\tsha256sums = .*/\tsha256sums = ${SHA256}/" .SRCINFO
+
+          # Commit and push
+          git add PKGBUILD .SRCINFO
+          git commit -m "Update to ${VERSION}"
+          git push origin master
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'AUR Update Failed',
+              body: `The automatic AUR update workflow failed.
+
+            Workflow: ${{ github.workflow }}
+            Run ID: ${{ github.run_id }}
+            Repository: ${{ github.repository }}
+
+            Check the logs at: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
+              labels: ['aur', 'automation', 'failed']
+            })
