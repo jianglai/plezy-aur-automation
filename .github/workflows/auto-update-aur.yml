@@ -46,6 +46,15 @@ jobs:
           fingerprint: 6FACCC8D04C61D30
           workdir: /tmp/aur-package
 
+      - name: Test
+        id: test
+        run: |
+          cd /tmp/aur-package
+          touch abcde
+          git add .
+          git commit -S -m "test"
+          git log --show-signature
+
       - name: Check if update needed
         id: check
         run: |
