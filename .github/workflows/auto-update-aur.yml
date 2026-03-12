@@ -76,7 +76,6 @@ jobs:
           # Update PKGBUILD
           sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
           sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
-          sed -i "s|^source=.*|source=(\"${PKGNAME%-bin}-${VERSION}.pkg.tar.zst::https://github.com/edde746/plezy/releases/download/${VERSION}/plezy-linux-x64.pkg.tar.zst\")|" PKGBUILD
           sed -i "s/^sha256sums=.*/sha256sums=('${SHA256}')/" PKGBUILD
 
           # Update .SRCINFO manually
