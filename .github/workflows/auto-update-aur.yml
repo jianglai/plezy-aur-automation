@@ -70,9 +70,6 @@ jobs:
           git config user.name "${{ vars.GIT_USER_NAME }}"
           git config user.email "${{ vars.GIT_USER_EMAIL }}"
 
-          # Get pkgname from PKGBUILD
-          PKGNAME=$(grep '^pkgname=' PKGBUILD | cut -d'=' -f2)
-
           # Update PKGBUILD
           sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
           sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
