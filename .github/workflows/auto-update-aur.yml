@@ -9,7 +9,7 @@ jobs:
   update-aur:
     runs-on: ubuntu-latest
     steps:
-     - name: Import GPG key
+      - name: Import GPG key
         uses: crazy-max/ghaction-import-gpg@v7
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
