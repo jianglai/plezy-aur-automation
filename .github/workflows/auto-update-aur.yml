@@ -68,6 +68,10 @@ jobs:
           SHA256="${{ steps.download.outputs.sha256 }}"
           cd /tmp/aur-package
 
+          # Configure git using GitHub Actions environment
+          git config user.name "${{ vars.GIT_USER_NAME }}"
+          git config user.email "${{ vars.GIT_USER_EMAIL }}"
+
           # Get pkgname from PKGBUILD
           PKGNAME=$(grep '^pkgname=' PKGBUILD | cut -d'=' -f2)
 
