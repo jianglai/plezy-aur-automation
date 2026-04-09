@@ -50,8 +50,12 @@ jobs:
       - name: Check if update needed
         id: check
         run: |
-          if [ "${{ steps.upstream.outputs.version }}" != "$current_version" ]; then
-            echo "Update needed: $current_version -> ${{ steps.upstream.outputs.version }}"
+          VERSION="${{ steps.upstream.outputs.version }}"
+          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+            echo "Upstream returned null, skipping update"
+            echo "needed=false" >> $GITHUB_OUTPUT
+          elif [ "$VERSION" != "$current_version" ]; then
+            echo "Update needed: $current_version -> $VERSION"
             echo "needed=true" >> $GITHUB_OUTPUT
           else
             echo "No update needed (version: $current_version)"
