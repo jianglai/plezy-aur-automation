@@ -31,7 +31,12 @@ jobs:
 
       - name: Clone AUR package
         run: |
-          git clone ssh://aur@aur.archlinux.org/plezy-bin.git /tmp/aur-package
+          for attempt in 1 2 3; do
+            git clone ssh://aur@aur.archlinux.org/plezy-bin.git /tmp/aur-package && break
+            echo "Clone attempt $attempt failed, retrying..."
+            rm -rf /tmp/aur-package
+            sleep $((attempt * 5))
+          done
           cd /tmp/aur-package
           CURRENT_VERSION=$(grep '^pkgver=' PKGBUILD | cut -d'=' -f2)
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_ENV
